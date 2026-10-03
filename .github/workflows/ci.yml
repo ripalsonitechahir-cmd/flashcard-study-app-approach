@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Backend tests
+        working-directory: backend
+        run: |
+          npm ci
+          npm test
+
+      - name: Frontend build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Validate docker-compose file
+        run: docker compose config -q
+
+      - name: Build Docker image
+        run: docker compose build
+
+      - name: Smoke test container
+        run: |
+          docker compose up -d
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && break
+            sleep 2
+          done
+          curl -sf http://localhost:3000/health
+          curl -sf -X POST http://localhost:3000/cards -H 'Content-Type: application/json' -d '{"front":"Q","back":"A"}'
+          curl -sf http://localhost:3000/stats
+          curl -sf http://localhost:3000/ | grep -q "<div id=\"root\">"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/cards -H 'Content-Type: application/json' -d '{"front":"","back":"A"}')" = "400"
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

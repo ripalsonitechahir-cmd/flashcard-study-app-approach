@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/*.db
+**/*.db-journal
+backend/.env
+backend/public
+.git
+.github
+*.md
+*.docx

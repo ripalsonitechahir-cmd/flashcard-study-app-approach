@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: file:/data/flashcards.db
+    volumes:
+      - flashcard-data:/data
+    restart: unless-stopped
+
+volumes:
+  flashcard-data:

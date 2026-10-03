@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flashcard
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: flashcard-data
+  namespace: flashcard
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flashcard-app
+  namespace: flashcard
+spec:
+  replicas: 1            # SQLite is single-writer, so run exactly one pod
+  strategy:
+    type: Recreate       # never run two pods against the same DB file
+  selector:
+    matchLabels:
+      app: flashcard-app
+  template:
+    metadata:
+      labels:
+        app: flashcard-app
+    spec:
+      containers:
+        - name: app
+          image: flashcard-app:latest
+          imagePullPolicy: IfNotPresent   # image is built locally in Docker Desktop
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DATABASE_URL
+              value: file:/data/flashcards.db
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 15
+            periodSeconds: 15
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: flashcard-data
